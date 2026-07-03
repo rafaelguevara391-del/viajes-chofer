@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mis Viajes</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body{font-family:sans-serif;padding:20px;background:#f0ede8;}
+.card{background:white;border-radius:12px;padding:24px;max-width:400px;margin:40px auto;}
+h2{text-align:center;margin-bottom:16px;}
+input{width:100%;padding:14px;font-size:16px;border:1px solid #ccc;border-radius:8px;margin-bottom:12px;box-sizing:border-box;}
+button{width:100%;padding:14px;font-size:16px;background:#1D9E75;color:white;border:none;border-radius:8px;cursor:pointer;}
+#msg{margin-top:12px;padding:12px;border-radius:8px;background:#f5f5f4;font-size:14px;display:none;word-break:break-all;}
+#app{display:none;padding:20px;max-width:400px;margin:0 auto;}
+.viaje{background:white;border-radius:12px;padding:16px;margin-bottom:12px;}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="card">
+    <h2>Mis Viajes</h2>
+    <input type="number" id="dni" placeholder="Ingresá tu DNI" inputmode="numeric">
+    <button onclick="entrar()">Ver mis viajes</button>
+    <div id="msg"></div>
+  </div>
+</div>
+
+<div id="app">
+  <h2 id="saludo"></h2>
+  <div id="viajes"><p>Cargando viajes...</p></div>
+</div>
+
+<script>
+var SUPA_URL = 'https://cqdoritjnulopaysjlfg.supabase.co';
+var SUPA_KEY = 'sb_publishable__n5ncv0PQuqcFftL8pT_RQ_IeV4gqSf';
+var db = supabase.createClient(SUPA_URL, SUPA_KEY);
+var chofer = null;
+
+function mostrar(txt, color) {
+  var el = document.getElementById('msg');
+  el.textContent = txt;
+  el.style.display = 'block';
+  el.style.background = color || '#f5f5f4';
+}
+
+async function entrar() {
+  var dni = document.getElementById('dni').value.toString().trim();
+  if (!dni) { mostrar('Ingresá tu DNI.', '#fee'); return; }
+  mostrar('Conectando...', '#e8f5ee');
+  try {
+    var r = await db.from('choferes').select('*').eq('activo', true);
+    if (r.error) { mostrar('Error DB: ' + r.error.message, '#fee'); return; }
+    var lista = r.data || [];
+    var found = null;
+    for (var i = 0; i < lista.length; i++) {
+      if (String(lista[i].dni).trim() === dni) { found = lista[i]; break; }
+    }
+    if (!found) {
+      mostrar('DNI ' + dni + ' no encontrado. Choferes en sistema: ' + lista.length + '. DNIs: ' + lista.map(function(c){return c.dni;}).join(', '), '#fee');
+      return;
+    }
+    chofer = found;
+    document.getElementById('login').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('saludo').textContent = 'Hola, ' + chofer.nombre;
+    cargarViajes();
+  } catch(e) {
+    mostrar('Excepcion: ' + e.message, '#fee');
+  }
+}
+
+async function cargarViajes() {
+  var cont = document.getElementById('viajes');
+  try {
+    var r = await db.from('viajes').select('*').eq('chofer', chofer.nombre).neq('estado', 'cerrado');
+    if (r.error) { cont.innerHTML = '<p>Error: ' + r.error.message + '</p>'; return; }
+    var lista = r.data || [];
+    if (!lista.length) { cont.innerHTML = '<p>No tenés viajes activos.</p>'; return; }
+    cont.innerHTML = lista.map(function(v) {
+      return '<div class="viaje"><strong>' + (v.id_viaje||'—') + '</strong> — ' + v.patente + '<br>' + v.destino + '<br><em>' + v.estado + '</em></div>';
+    }).join('');
+  } catch(e) {
+    cont.innerHTML = '<p>Error: ' + e.message + '</p>';
+  }
+}
+</script>
+</body>
+</html>
